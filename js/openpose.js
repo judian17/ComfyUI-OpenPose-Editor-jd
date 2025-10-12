@@ -731,11 +731,16 @@ class OpenPosePanel {
 
     saveToNode() {
         const newPoseJson = this.serializeJSON();
-        console.log(`[DEBUG_FRONTEND] ${new Date().toLocaleTimeString()} - saveToNode() called.`);
-        console.log("[DEBUG_FRONTEND] Current node properties:", this.node.properties.savedPose);
-        console.log("[DEBUG_FRONTEND] New pose data to be saved:", newPoseJson);
-        // --- 【调试代码结束】 ---
-        this.node.setProperty("savedPose", this.serializeJSON());
+        
+        // 保存到工作流，用于加载
+        this.node.setProperty("savedPose", newPoseJson);
+
+        // 更新隐藏控件的值，用于当次运行
+        // 这一行是必须的！
+        if (this.node.jsonWidget) {
+            this.node.jsonWidget.value = newPoseJson;
+        }
+
         this.uploadAndSetImages();
     }
 
@@ -944,6 +949,9 @@ class OpenPosePanel {
             
             // --- 新增逻辑：将文件名保存到节点属性中 ---
             this.node.setProperty("backgroundImage", filename);
+            if (this.node.bgImageWidget) {
+                this.node.bgImageWidget.value = filename;
+            }
 
             // --- 更新逻辑：从服务器URL加载图片，而不是本地DataURL ---
             const imageUrl = `/view?filename=${filename}&type=input&subfolder=${data.subfolder}&t=${Date.now()}`;
@@ -1130,24 +1138,40 @@ app.registerExtension({
         nodeType.prototype.onNodeCreated = function () {
             const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
 
+            // ================= 【 核心修复开始 】 =================
+            // 修正了属性初始化逻辑，确保 savedPose 总是存在
+
+            // 第一步：确保 this.properties 对象存在
             if (!this.properties) {
                 this.properties = {};
+            }
+            // 第二步：独立检查并确保 this.properties.savedPose 存在且有默认值
+            // 这就修复了之前版本中存在的漏洞
+            if (!this.properties.savedPose) {
                 this.properties.savedPose = "";
             }
+            // ================= 【 核心修复结束 】 =================
 
             this.serialize_widgets = true;
 
             // Output & widget
             this.imageWidget = this.widgets.find(w => w.name === "image");
             this.imageWidget.callback = this.showImage.bind(this);
-            this.imageWidget.disabled = true
-            // console.error(this);
+            this.imageWidget.disabled = true;
 
             // Non-serialized widgets
-            this.jsonWidget = this.addWidget("text", "", this.properties.savedPose, "savedPose");
-            this.jsonWidget.disabled = true
-            this.jsonWidget.serialize = true
-
+            // 现在这一行是100%安全的，因为 this.properties.savedPose 不可能是 undefined
+            this.jsonWidget = this.addWidget("text", "savedPose", this.properties.savedPose, "savedPose");
+            if (this.jsonWidget && this.jsonWidget.inputEl) {
+                this.jsonWidget.inputEl.style.display = "none";
+            } else {
+                // 如果不存在，我们就在控制台打印一个警告，但程序不会崩溃
+                console.warn("[OpenPose Editor] Warning: The hidden jsonWidget could not be fully hidden due to a potential conflict. The editor remains functional.");
+            }
+            this.bgImageWidget = this.addWidget("text", "backgroundImage", this.properties.backgroundImage || "", () => {}, {});
+            if (this.bgImageWidget && this.bgImageWidget.inputEl) {
+                this.bgImageWidget.inputEl.style.display = "none";
+            }
             this.openWidget = this.addWidget("button", "open editor", "image", () => {
                 const graphCanvas = LiteGraph.LGraphCanvas.active_canvas
                 if (graphCanvas == null)
@@ -1171,10 +1195,8 @@ app.registerExtension({
                 resizer.style.cursor = "se-resize";
                 panel.appendChild(resizer);
 
-                // Add to document
                 document.body.appendChild(panel);
 
-                // Handle resizing
                 let isResizing = false;
                 resizer.addEventListener("mousedown", (e) => {
                     e.preventDefault();
@@ -1195,9 +1217,6 @@ app.registerExtension({
             });
             this.openWidget.serialize = false;
 
-            // On load if we have a value then render the image
-            // The value isnt set immediately so we need to wait a moment
-            // No change callbacks seem to be fired on initial setting of the value
             requestAnimationFrame(async () => {
                 if (this.imageWidget.value) {
                     await this.setImage(this.imageWidget.value);
