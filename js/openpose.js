@@ -317,6 +317,8 @@ class OpenPosePanel {
         this.panel.addButton("Remove Pose", () => { this.removeFilteredPose(); this.saveToNode(); });
         this.panel.addButton("Reset", () => {
             this.resetCanvas();
+            this.node.setProperty("backgroundImage", ""); 
+            
 
             // 1. 将旧的 DEFAULT_KEYPOINTS 数组转换为 setPose 函数期望的正确格式
             const default_pose_keypoints_2d = [];
@@ -556,7 +558,9 @@ class OpenPosePanel {
     }
 
     async setPose(people){ // 参数从 poses 变为 people
+        const tempBackgroundImage = this.canvas.backgroundImage;
         this.canvas.clear();
+        this.canvas.backgroundImage = tempBackgroundImage;
         this.canvas.backgroundColor = "#000";
         this.nextPoseId = 0;
 
@@ -865,8 +869,9 @@ class OpenPosePanel {
 
 
     resetCanvas() {
-        this.canvas.clear()
-        this.canvas.backgroundColor = "#000"
+        this.canvas.clear(); 
+        this.canvas.setBackgroundImage(null, this.canvas.renderAll.bind(this.canvas));
+        this.canvas.backgroundColor = "#000";
         this.nextPoseId = 0;
     }
 
@@ -997,7 +1002,7 @@ class OpenPosePanel {
     // 【请用此版本替换旧的 loadJSON 函数】
     loadJSON(text) {
         try {
-            const tempBackgroundImage = this.canvas.backgroundImage;
+            
             const json = JSON.parse(text);
 
             if (!json["width"] || !json["height"]) {
@@ -1056,7 +1061,7 @@ class OpenPosePanel {
 
             this.setPose(people);
             
-            this.canvas.setBackgroundImage(tempBackgroundImage, this.canvas.renderAll.bind(this.canvas));
+            
             
             // (撤回/重做和筛选器状态恢复的逻辑保持不变)
 

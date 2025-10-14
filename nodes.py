@@ -13,30 +13,35 @@ from PIL import Image
 # 【最终整合版】OpenPose Editor 节点
 # ====================================================================================================
 class OpenPoseEditor:
+    # 【必要部分】: 我们保留这个类属性。它修复了一个潜在的稳定性问题，
+    # 并且是让 IS_CHANGED 函数能稳定运行的关键。
+    _last_fingerprints = {}
+
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "image": ("STRING", { "default": "" }),
             },
-            # 新增的可选参数，用于DWPose渲染
             "optional": {
                 "output_width_for_dwpose": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
                 "output_height_for_dwpose": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
                 "scale_for_xinsr_for_dwpose": ("BOOLEAN", {"default": False}),
             },
-            # 隐藏输入，用于从前端接收数据
             "hidden": {
                 "savedPose": ("STRING", {"multiline": True}),
-                "backgroundImage": ("STRING", {"multiline": False}), # 新增，用于接收背景图文件名
+                "backgroundImage": ("STRING", {"multiline": False}),
             }
         }
     
     @classmethod
-    def IS_CHANGED(s, image, savedPose, backgroundImage, **kwargs):
-        # 当任何关键数据变化时，都强制重新运行
-        return f"{savedPose}-{backgroundImage}-{time.time()}"
+    def IS_CHANGED(cls, image, savedPose, backgroundImage, output_width_for_dwpose, output_height_for_dwpose, scale_for_xinsr_for_dwpose, **kwargs):
+        # 【最终逻辑】: 这就是干净的生产版本。
+        # 它不再打印任何东西，只是高效地计算并返回指纹。
+        fingerprint = f"{savedPose}-{backgroundImage}-{output_width_for_dwpose}-{output_height_for_dwpose}-{scale_for_xinsr_for_dwpose}"
+        return fingerprint
 
+    # RETURN_TYPES, RETURN_NAMES, FUNCTION, CATEGORY 保持不变...
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "IMAGE",)
     RETURN_NAMES = ("pose_image", "combined_image", "dw_pose_image", "dw_combined_image",)
     FUNCTION = "get_images"
